@@ -7,8 +7,12 @@ import 'ContactUsPage.dart';
 
 class SettingsPage extends StatefulWidget {
   final Function(bool) onDarkModeChanged;
+  final VoidCallback onRefresh;
 
-  SettingsPage({required this.onDarkModeChanged});
+  SettingsPage({
+    required this.onDarkModeChanged,
+    required this.onRefresh,
+  });
 
   @override
   _SettingsPageState createState() => _SettingsPageState();
@@ -63,32 +67,86 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  void _logout() {
+  Future<void> _clearAllData() async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Logout",
-            style: TextStyle(
-                color: _darkMode ? UIColors.textColor : Colors.black)),
-        content: Text("Are you sure you want to logout?",
-            style: TextStyle(
-                color: _darkMode ? UIColors.textColor : Colors.black)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel",
-                style: TextStyle(
-                    color: _darkMode ? UIColors.textColor : Colors.black)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: Text("Logout",
-                style: TextStyle(
-                    color: _darkMode ? UIColors.textColor : Colors.black)),
-          ),
-        ],
+      builder: (BuildContext dialogContext) => Builder(
+        builder: (BuildContext builderContext) {
+          final isDarkMode =
+              Theme.of(builderContext).brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor:
+                isDarkMode ? UIColors.backgroundColor : Colors.white,
+            title: Text(
+              "Clear All Data",
+              style: TextStyle(
+                color: isDarkMode ? UIColors.textColor : Colors.black,
+              ),
+            ),
+            content: Text(
+              "Are you sure you want to clear all todo lists and chats? This action cannot be undone.",
+              style: TextStyle(
+                color: isDarkMode ? UIColors.textColor : Colors.black,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(
+                  "Cancel",
+                  style: TextStyle(
+                    color: isDarkMode ? UIColors.textColor : Colors.black,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+
+                  // Clear todo lists
+                  await prefs.remove('tasks');
+
+                  // Clear all chat data
+                  final historiesCount =
+                      prefs.getInt('chat_histories_count') ?? 0;
+                  for (int i = 0; i < historiesCount; i++) {
+                    await prefs.remove('chat_history_$i');
+                  }
+                  await prefs.remove('chat_histories_count');
+                  await prefs.remove('current_chat_index');
+
+                  // Clear user name
+                  await prefs.remove('user_name');
+
+                  // Keep dark mode and notification settings
+
+                  setState(() {
+                    _nameController.text = '';
+                  });
+
+                  // Close dialog and settings page
+                  Navigator.of(context).pop(); // Close dialog
+                  Navigator.of(context).pop(); // Close settings page
+
+                  // Show success message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('All data has been cleared successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+
+                  // Trigger refresh of all pages immediately
+                  widget.onRefresh();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                ),
+                child: Text("Clear All", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -249,10 +307,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 SizedBox(height: 10),
                 ListTile(
-                  leading: Icon(Icons.exit_to_app, color: Colors.redAccent),
-                  title:
-                      Text('Logout', style: TextStyle(color: Colors.redAccent)),
-                  onTap: _logout,
+                  leading: Icon(Icons.delete_forever, color: Colors.redAccent),
+                  title: Text('Clear All Data',
+                      style: TextStyle(color: Colors.redAccent)),
+                  onTap: _clearAllData,
                 ),
               ],
             ),

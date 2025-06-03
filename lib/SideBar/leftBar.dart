@@ -8,6 +8,7 @@ import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import '../ui/ui_colors.dart';
+import 'dart:async';
 
 class Leftbar extends StatefulWidget {
   const Leftbar({super.key});
@@ -20,12 +21,32 @@ class _LeftbarState extends State<Leftbar> {
   int _selectedTab = 0;
   String? _profileImagePath;
   bool _darkMode = true;
+  // Add refresh counter to force rebuild
+  int _refreshCounter = 0;
+
+  // Add timer state variables
+  Timer? _timer;
+  int _currentSeconds = 25 * 60;
+  bool _isRunning = false;
+  String _currentMode = "pomodoro";
+  Map<String, int> _timers = {
+    "pomodoro": 25 * 60,
+    "short break": 5 * 60,
+    "long break": 15 * 60,
+  };
 
   @override
   void initState() {
     super.initState();
     _loadProfileImage();
     _loadSettings();
+    _loadTimerSettings();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProfileImage() async {
@@ -42,9 +63,75 @@ class _LeftbarState extends State<Leftbar> {
     });
   }
 
+  Future<void> _loadTimerSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _timers = {
+        "pomodoro": (prefs.getInt('pomodoro_minutes') ?? 25) * 60,
+        "short break": (prefs.getInt('short_break_minutes') ?? 5) * 60,
+        "long break": (prefs.getInt('long_break_minutes') ?? 15) * 60,
+      };
+      _currentSeconds = _timers[_currentMode]!;
+    });
+  }
+
   void _updateDarkMode(bool value) {
     setState(() {
       _darkMode = value;
+    });
+  }
+
+  // Add timer control methods
+  void toggleTimer() {
+    if (_isRunning) {
+      _pauseTimer();
+    } else {
+      _startTimer();
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_currentSeconds > 0) {
+          _currentSeconds--;
+        } else {
+          _timer?.cancel();
+          _isRunning = false;
+        }
+      });
+    });
+    setState(() => _isRunning = true);
+  }
+
+  void _pauseTimer() {
+    _timer?.cancel();
+    setState(() => _isRunning = false);
+  }
+
+  void switchTimerMode(String mode) {
+    _timer?.cancel();
+    setState(() {
+      _currentMode = mode;
+      _currentSeconds = _timers[mode]!;
+      _isRunning = false;
+    });
+  }
+
+  void updateTimerSettings(Map<String, int> newTimers) {
+    setState(() {
+      _timers = newTimers;
+      _currentSeconds = _timers[_currentMode]!;
+      _isRunning = false;
+      _timer?.cancel();
+    });
+  }
+
+  void _refreshAllPages() {
+    setState(() {
+      // Increment counter to force rebuild of all pages
+      _refreshCounter++;
     });
   }
 
@@ -158,7 +245,10 @@ class _LeftbarState extends State<Leftbar> {
                     child: Padding(
                       padding: EdgeInsets.only(
                           top: MediaQuery.of(context).padding.top),
-                      child: SettingsPage(onDarkModeChanged: _updateDarkMode),
+                      child: SettingsPage(
+                        onDarkModeChanged: _updateDarkMode,
+                        onRefresh: _refreshAllPages,
+                      ),
                     ),
                   ),
                 );
@@ -230,7 +320,9 @@ class _LeftbarState extends State<Leftbar> {
   }
 
   Widget _buildPageView() {
+    // Add refresh counter to force rebuild of page view
     return AnimatedSwitcher(
+      key: ValueKey<int>(_refreshCounter),
       duration: const Duration(milliseconds: 350),
       transitionBuilder: (child, animation) {
         return FadeTransition(opacity: animation, child: child);
@@ -240,21 +332,40 @@ class _LeftbarState extends State<Leftbar> {
   }
 
   Widget _getPage(int index) {
+    // Use refresh counter in key to force rebuild
+    final pageKey = ValueKey<int>(_refreshCounter);
+
     switch (index) {
       case 0:
         return Homepage(
+          key: pageKey,
           darkMode: _darkMode,
         );
       case 1:
         return ChatDesign(
+          key: pageKey,
           darkMode: _darkMode,
         );
       case 2:
-        return Pomodoro(darkMode: _darkMode);
+        return Pomodoro(
+          key: pageKey,
+          darkMode: _darkMode,
+          currentSeconds: _currentSeconds,
+          isRunning: _isRunning,
+          currentMode: _currentMode,
+          timers: _timers,
+          onToggleTimer: toggleTimer,
+          onSwitchMode: switchTimerMode,
+          onUpdateSettings: updateTimerSettings,
+        );
       case 3:
-        return Dotolist(darkMode: _darkMode);
+        return Dotolist(
+          key: pageKey,
+          darkMode: _darkMode,
+        );
       default:
         return Homepage(
+          key: pageKey,
           darkMode: _darkMode,
         );
     }

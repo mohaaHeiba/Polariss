@@ -14,11 +14,12 @@ class ChatDesign extends StatefulWidget {
 class _ChatDesignState extends State<ChatDesign> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _textFieldFocusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
   final List<String> _messages = [];
   List<List<String>> _chatHistories = [];
   int _currentChatIndex = 0;
-  bool _darkMode = true;
   final ChatGPTService _chatGPTService = ChatGPTService();
+  bool _isTyping = false;
 
   @override
   void initState() {
@@ -142,6 +143,63 @@ class _ChatDesignState extends State<ChatDesign> {
     });
   }
 
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0, // Since we're reversed, 0 is the bottom
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Widget _buildTypingIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.blue[700],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDot(0),
+              const SizedBox(width: 4),
+              _buildDot(1),
+              const SizedBox(width: 4),
+              _buildDot(2),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 600),
+      curve:
+          Interval(index * 0.2, (index * 0.2) + 0.5, curve: Curves.easeInOut),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, -2 * value),
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _sendMessage() async {
     String message = _controller.text.trim();
     if (message.isNotEmpty) {
@@ -152,14 +210,22 @@ class _ChatDesignState extends State<ChatDesign> {
       setState(() {
         _messages.add('$timeStr - user - $message');
         _controller.clear();
+        _isTyping = true;
       });
+      _scrollToBottom();
 
       // Get response from ChatGPT
       String response = await _chatGPTService.sendMessage(message);
+
+      // Add a small delay to make the typing animation visible
+      await Future.delayed(const Duration(milliseconds: 500));
+
       setState(() {
+        _isTyping = false;
         _messages.add('$timeStr - assistant - $response');
         _saveChatHistories();
       });
+      _scrollToBottom();
 
       // Re-focus the text field after sending a message
       Future.delayed(Duration(milliseconds: 50), () {
@@ -173,6 +239,12 @@ class _ChatDesignState extends State<ChatDesign> {
       _messages.clear();
       _saveChatHistories();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -200,51 +272,82 @@ class _ChatDesignState extends State<ChatDesign> {
         children: [
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
+              reverse: true,
               padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
+              itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
-                final parts = _messages[index].split(' - ');
+                if (_isTyping && index == 0) {
+                  return _buildTypingIndicator();
+                }
+
+                final adjustedIndex = _isTyping ? index - 1 : index;
+                final reversedIndex = _messages.length - 1 - adjustedIndex;
+                final parts = _messages[reversedIndex].split(' - ');
                 final time = parts.length > 2 ? parts[0] : '';
                 final role = parts.length > 2 ? parts[1] : 'user';
                 final message = parts.length > 2 ? parts[2] : parts[0];
 
-                return Row(
-                  mainAxisAlignment: role == 'assistant'
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.start,
-                  children: [
-                    Flexible(
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.45,
-                        ),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: role == 'assistant'
-                              ? Colors.blue[700]
-                              : Colors.grey[700],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(message,
-                                style: const TextStyle(color: Colors.white)),
-                            if (time.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Align(
-                                alignment: Alignment.bottomRight,
-                                child: Text(time,
-                                    style: TextStyle(
-                                        color: Colors.grey[400], fontSize: 12)),
+                return TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: Transform.translate(
+                        offset: Offset(0, 20 * (1 - value)),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Row(
+                    mainAxisAlignment: role == 'assistant'
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
+                    children: [
+                      Flexible(
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.45,
+                          ),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: role == 'assistant'
+                                ? Colors.blue[700]
+                                : Colors.grey[700],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                message,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
                               ),
+                              if (time.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.bottomRight,
+                                  child: Text(
+                                    time,
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),

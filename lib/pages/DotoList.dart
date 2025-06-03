@@ -83,14 +83,6 @@ class _DotolistState extends State<Dotolist> {
     );
   }
 
-  Future<void> _playNotificationSound() async {
-    // You can replace this URL with any other online MP3 sound
-    const String soundUrl =
-        'https://dl.dropboxusercontent.com/scl/fi/sbq2179my8k682qn40yd8/Art-Deco-YouTube.mp3?rlkey=3yqxxgsnewrz1mlcuio32a3w5&st=nytzm6hi';
-
-    await _audioPlayer.play(UrlSource(soundUrl));
-  }
-
   Future<void> _scheduleNotification(String task, DateTime dateTime) async {
     // Show desktop notification
     final notification = LocalNotification(
@@ -134,7 +126,6 @@ class _DotolistState extends State<Dotolist> {
         ),
         () async {
           await notification.show();
-          await _playNotificationSound();
         },
       );
     }
@@ -201,17 +192,34 @@ class _DotolistState extends State<Dotolist> {
   }
 
   Future<void> _loadTasks() async {
-    _prefs = await SharedPreferences.getInstance();
-    String? tasksString = _prefs.getString('tasks');
-    if (tasksString != null) {
-      setState(() {
+    try {
+      _prefs = await SharedPreferences.getInstance();
+      String? tasksString = _prefs.getString('tasks');
+      if (tasksString != null) {
         final List<dynamic> decodedTasks = jsonDecode(tasksString);
-        _tasks.addAll(decodedTasks.map((x) {
-          final Map<String, dynamic> task = Map<String, dynamic>.from(x);
-          // Ensure repeat field exists
-          task['repeat'] ??= 'none';
-          return task;
-        }));
+        setState(() {
+          _tasks.clear();
+          for (var task in decodedTasks) {
+            if (task is Map) {
+              final Map<String, dynamic> safeTask = {
+                'task': task['task']?.toString() ?? '',
+                'completed': task['completed'] as bool? ?? false,
+                'completedDates':
+                    task['completedDates'] as Map<String, dynamic>? ?? {},
+                'dueDate': task['dueDate']?.toString() ??
+                    DateTime.now().toIso8601String(),
+                'repeat': task['repeat']?.toString() ?? 'none',
+                'time': task['time']?.toString(),
+              };
+              _tasks.add(safeTask);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading tasks: $e');
+      setState(() {
+        _tasks.clear();
       });
     }
   }
@@ -262,14 +270,18 @@ class _DotolistState extends State<Dotolist> {
         }
       }
 
+      // Create a properly typed task map
+      final Map<String, dynamic> newTask = {
+        'task': task,
+        'completed': false,
+        'completedDates': <String, dynamic>{}, // Explicitly type the map
+        'dueDate': taskDateTime.toIso8601String(),
+        'repeat': _newTaskRepeatOption,
+        'time': _selectedTime?.format(context),
+      };
+
       setState(() {
-        _tasks.add({
-          'task': task,
-          'completed': false,
-          'dueDate': taskDateTime.toIso8601String(),
-          'repeat': _newTaskRepeatOption,
-          'time': _selectedTime?.format(context),
-        });
+        _tasks.add(newTask);
         _taskController.clear();
         _newTaskRepeatOption = 'none';
         _newTaskTimeOption = 'none';
@@ -279,9 +291,32 @@ class _DotolistState extends State<Dotolist> {
     }
   }
 
-  void _updateTaskRepeat(int taskIndex, String repeatValue) {
+  bool _isTaskCompletedForDate(Map<String, dynamic> task, DateTime date) {
+    if (task['repeat'] == 'none') {
+      return task['completed'] ?? false;
+    }
+
+    // For repeating tasks, check the completedDates map
+    final completedDates =
+        task['completedDates'] as Map<String, dynamic>? ?? {};
+    final dateKey = date.toIso8601String().split('T')[0]; // Use date part only
+    return completedDates[dateKey] ?? false;
+  }
+
+  void _toggleTaskCompletion(int taskIndex, DateTime date) {
     setState(() {
-      _tasks[taskIndex]['repeat'] = repeatValue;
+      final task = _tasks[taskIndex];
+      if (task['repeat'] == 'none') {
+        // For non-repeating tasks, just toggle the completed status
+        task['completed'] = !(task['completed'] ?? false);
+      } else {
+        // For repeating tasks, toggle the completion for the specific date
+        final completedDates =
+            task['completedDates'] as Map<String, dynamic>? ?? {};
+        final dateKey = date.toIso8601String().split('T')[0];
+        completedDates[dateKey] = !(completedDates[dateKey] ?? false);
+        task['completedDates'] = completedDates;
+      }
       _saveTasks();
     });
   }
@@ -458,6 +493,8 @@ class _DotolistState extends State<Dotolist> {
               itemBuilder: (context, index) {
                 final task = _tasks[index];
                 if (_shouldShowTask(task)) {
+                  final isCompleted =
+                      _isTaskCompletedForDate(task, _selectedDate);
                   return Container(
                     margin: const EdgeInsets.symmetric(vertical: 1),
                     decoration: BoxDecoration(
@@ -476,30 +513,26 @@ class _DotolistState extends State<Dotolist> {
                         ]),
                     child: ListTile(
                       leading: Checkbox(
-                        value: _tasks[index]['completed'],
+                        value: isCompleted,
                         onChanged: (bool? value) {
-                          setState(() {
-                            _tasks[index]['completed'] = value;
-                            _saveTasks();
-                          });
+                          _toggleTaskCompletion(index, _selectedDate);
                         },
                         activeColor: Colors.green,
                       ),
                       title: Text(
-                        _tasks[index]['task'],
+                        task['task'],
                         style: TextStyle(
-                          decoration: _tasks[index]['completed']
-                              ? TextDecoration.lineThrough
-                              : null,
+                          decoration:
+                              isCompleted ? TextDecoration.lineThrough : null,
                           color: widget.darkMode ? Colors.white : Colors.black,
                         ),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_tasks[index]['time'] != null)
+                          if (task['time'] != null)
                             Text(
-                              'Time: ${_tasks[index]['time']}',
+                              'Time: ${task['time']}',
                               style: TextStyle(
                                 color: widget.darkMode
                                     ? Colors.white70
@@ -507,9 +540,9 @@ class _DotolistState extends State<Dotolist> {
                                 fontSize: 12,
                               ),
                             ),
-                          if (_tasks[index]['repeat'] != 'none')
+                          if (task['repeat'] != 'none')
                             Text(
-                              'Repeats ${_tasks[index]['repeat']}',
+                              'Repeats ${task['repeat']}',
                               style: TextStyle(
                                 color: widget.darkMode
                                     ? Colors.white70
@@ -525,12 +558,11 @@ class _DotolistState extends State<Dotolist> {
                           IconButton(
                             icon: Icon(
                               Icons.repeat,
-                              color:
-                                  (_tasks[index]['repeat'] ?? 'none') != 'none'
-                                      ? Colors.green
-                                      : (widget.darkMode
-                                          ? Colors.white54
-                                          : Colors.black54),
+                              color: (task['repeat'] ?? 'none') != 'none'
+                                  ? Colors.green
+                                  : (widget.darkMode
+                                      ? Colors.white54
+                                      : Colors.black54),
                             ),
                             onPressed: () {
                               showMenu(
@@ -607,7 +639,7 @@ class _DotolistState extends State<Dotolist> {
                       onPressed: () {
                         final RenderBox button =
                             context.findRenderObject() as RenderBox;
-                        final Offset offset = button.localToGlobal(Offset.zero);
+                        button.localToGlobal(Offset.zero);
 
                         showMenu(
                           color: widget.darkMode ? Colors.black : Colors.white,

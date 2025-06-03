@@ -61,6 +61,9 @@ class MyApp extends StatelessWidget {
       ),
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.white,
+        tabBarTheme: const TabBarTheme(
+          dividerColor: Colors.transparent,
+        ),
         navigationRailTheme: NavigationRailThemeData(
           backgroundColor: Color(0xFF202020),
           selectedIconTheme: IconThemeData(size: 28, color: Color(0xFF64FFDA)),

@@ -12,11 +12,9 @@ class Homepage extends StatefulWidget {
 }
 
 class _HomepageState extends State<Homepage> {
-  bool _darkMode = true;
-  List<Map<String, dynamic>> _recentTasks = [];
+  List<Map<String, dynamic>> _dailyTasks = [];
   int _totalTasks = 0;
   int _completedTasks = 0;
-  int _lastChatIndex = 0;
   List<String> _lastChatMessages = [];
 
   @override
@@ -31,12 +29,61 @@ class _HomepageState extends State<Homepage> {
     String? tasksString = prefs.getString('tasks');
     if (tasksString != null) {
       final List<dynamic> allTasks = jsonDecode(tasksString);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
       setState(() {
         _totalTasks = allTasks.length;
-        _completedTasks =
-            allTasks.where((task) => task['completed'] == true).length;
-        _recentTasks =
-            allTasks.take(3).map((x) => Map<String, dynamic>.from(x)).toList();
+        _completedTasks = allTasks.where((task) {
+          // For non-repeating tasks, check the completed status directly
+          if (task['repeat'] == 'none') {
+            return task['completed'] == true;
+          }
+
+          // For repeating tasks, check the completedDates map
+          final completedDates =
+              task['completedDates'] as Map<String, dynamic>? ?? {};
+          final dateKey = today.toIso8601String().split('T')[0];
+          return completedDates[dateKey] == true;
+        }).length;
+
+        // Filter tasks for today
+        _dailyTasks = allTasks.where((task) {
+          final taskDate = DateTime.parse(
+              task['dueDate'] ?? DateTime.now().toIso8601String());
+          final taskDay = DateTime(taskDate.year, taskDate.month, taskDate.day);
+
+          // Check if task is for today or is a repeating task that should show today
+          if (DateUtils.isSameDay(taskDay, today)) return true;
+
+          // Handle repeating tasks
+          final repeatType = task['repeat'] as String? ?? 'none';
+          switch (repeatType) {
+            case 'daily':
+              return true;
+            case 'weekly':
+              return taskDate.weekday == today.weekday;
+            case 'monthly':
+              return taskDate.day == today.day;
+            case 'yearly':
+              return taskDate.month == today.month && taskDate.day == today.day;
+            default:
+              return false;
+          }
+        }).map((task) {
+          // Create a copy of the task with the correct completion status for today
+          final Map<String, dynamic> taskCopy = Map<String, dynamic>.from(task);
+
+          // For repeating tasks, check the completedDates map
+          if (task['repeat'] != 'none') {
+            final completedDates =
+                task['completedDates'] as Map<String, dynamic>? ?? {};
+            final dateKey = today.toIso8601String().split('T')[0];
+            taskCopy['completed'] = completedDates[dateKey] ?? false;
+          }
+
+          return taskCopy;
+        }).toList();
       });
     }
   }
@@ -53,7 +100,6 @@ class _HomepageState extends State<Homepage> {
         .toList();
 
     setState(() {
-      _lastChatIndex = totalChats;
       _lastChatMessages = lastFiveChats.map((index) => 'Chat $index').toList();
     });
   }
@@ -140,7 +186,7 @@ class _HomepageState extends State<Homepage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Recent Tasks',
+                                'Today\'s Tasks',
                                 style: TextStyle(
                                   color: widget.darkMode
                                       ? Colors.white
@@ -152,7 +198,7 @@ class _HomepageState extends State<Homepage> {
                               const SizedBox(height: 16), // Reduced from 24
                               Expanded(
                                 child: ListView(
-                                  children: _recentTasks
+                                  children: _dailyTasks
                                       .map((task) => _buildTaskItem(task))
                                       .toList(),
                                 ),
@@ -388,16 +434,29 @@ class _HomepageState extends State<Homepage> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Text(
-              task['task'],
-              style: TextStyle(
-                color: widget.darkMode ? Colors.white : Colors.black87,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                decoration:
-                    task['completed'] ? TextDecoration.lineThrough : null,
-                decorationColor: Colors.grey,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task['task'],
+                  style: TextStyle(
+                    color: widget.darkMode ? Colors.white : Colors.black87,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    decoration:
+                        task['completed'] ? TextDecoration.lineThrough : null,
+                    decorationColor: Colors.grey,
+                  ),
+                ),
+                if (task['repeat'] != 'none' && task['repeat'] != null)
+                  Text(
+                    'Repeats ${task['repeat']}',
+                    style: TextStyle(
+                      color: widget.darkMode ? Colors.white70 : Colors.black54,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

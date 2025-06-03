@@ -247,23 +247,6 @@ class _ContactUsPageState extends State<ContactUsPage> {
     );
   }
 
-  Widget _contactInfo(String title, String value) {
-    return Row(
-      children: [
-        Icon(Icons.info_outline,
-            color: const Color.fromARGB(255, 0, 0, 0), size: 20),
-        SizedBox(width: 10),
-        Text(
-          "$title: $value",
-          style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: widget.darkMode ? Colors.white : Colors.black),
-        ),
-      ],
-    );
-  }
-
   Widget _inputField(String label, String hint,
       TextEditingController controller, bool darkMode,
       {int maxLines = 1}) {
