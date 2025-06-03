@@ -1,5 +1,11 @@
 # Polaris Chat
 
+## 📸 Screenshots
+
+| Home Page | Chat | Pomodoro Timer | Todo List |
+|-----------|------|---------------|-----------|
+| ![Home](images/screenshot1.png) | ![Chat](images/screenshot2.png) | ![Pomodoro](images/screenshot3.png) | ![Todo](images/screenshot4.png) |
+
 A modern, feature-rich desktop chat application built with Flutter, offering a seamless messaging experience with AI integration.
 
 ## 🌟 Features
