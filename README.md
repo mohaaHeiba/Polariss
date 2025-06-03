@@ -54,6 +54,9 @@ Currently supports:
 <img src="https://github.com/user-attachments/assets/3b825b05-90db-4213-909a-7d1af2403b76" width="250" />
 <img src="https://github.com/user-attachments/assets/7e2a5cc8-b38e-4cb9-8d11-a748be945d19" width="250" />
 <img src="https://github.com/user-attachments/assets/6b013df5-4fff-4f24-b149-f38f197858d5" width="250" />
+<img src="https://github.com/user-attachments/assets/4d50a70f-17ca-4590-8abc-46ae8d147544" width="250" />
+<img src="https://github.com/user-attachments/assets/8d4978e7-6e52-4e66-93d3-4dfbed94565b" width="250" />
+
 
 
 ## 📝 License
