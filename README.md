@@ -50,10 +50,10 @@ Currently supports:
 
   
 ## 📸 Screenshots
-<img src="https://github.com/user-attachments/assets/813763a5-3b6e-44bc-b7a8-7651384e06f1" width="300" />
-<img src="https://github.com/user-attachments/assets/3b825b05-90db-4213-909a-7d1af2403b76" width="300" />
-<img src="https://github.com/user-attachments/assets/7e2a5cc8-b38e-4cb9-8d11-a748be945d19" width="300" />
-<img src="https://github.com/user-attachments/assets/6b013df5-4fff-4f24-b149-f38f197858d5" width="300" />
+<img src="https://github.com/user-attachments/assets/813763a5-3b6e-44bc-b7a8-7651384e06f1" width="250" />
+<img src="https://github.com/user-attachments/assets/3b825b05-90db-4213-909a-7d1af2403b76" width="250" />
+<img src="https://github.com/user-attachments/assets/7e2a5cc8-b38e-4cb9-8d11-a748be945d19" width="250" />
+<img src="https://github.com/user-attachments/assets/6b013df5-4fff-4f24-b149-f38f197858d5" width="250" />
 
 
 ## 📝 License
